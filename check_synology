@@ -1,0 +1,684 @@
+#!/bin/bash
+
+script="check_synology"
+version="1.0.0"
+author="John Gonzalez"
+
+# Default values
+SNMP_HOST=""
+SNMP_PORT="161"
+SNMP_USERNAME=""
+SNMP_AUTH_PASSPHRASE=""
+SNMP_AUTH_PROTOCOL="SHA"
+SNMP_PRIVACY_PASSPHRASE=""
+SNMP_PRIVACY_PROTOCOL="AES"
+
+# Mappings of keywords to OIDs
+declare -A KEYWORDS_TO_OIDS
+
+function generate_oids() {
+  local keyword=$1
+  local oid_prefix=$2
+  for (( i=0; i<=255; i++ )); do
+    KEYWORDS_TO_OIDS["$keyword$i"]="$oid_prefix.$i"
+  done
+}
+
+# System MIB
+KEYWORDS_TO_OIDS=(
+  # System MIB
+  ["systemStatus"]=".1.3.6.1.4.1.6574.1.1.0"
+  ["temperature"]=".1.3.6.1.4.1.6574.1.2.0"
+  ["powerStatus"]=".1.3.6.1.4.1.6574.1.3.0"
+  ["systemFanStatus"]=".1.3.6.1.4.1.6574.1.4.1.0"
+  ["cpuFanStatus"]=".1.3.6.1.4.1.6574.1.4.2.0"
+  ["modelName"]=".1.3.6.1.4.1.6574.1.5.1.0"
+  ["serialNumber"]=".1.3.6.1.4.1.6574.1.5.2.0"
+  ["version"]=".1.3.6.1.4.1.6574.1.5.3.0"
+  ["upgradeAvailable"]=".1.3.6.1.4.1.6574.1.5.4.0"
+  # Disk MIB
+  ["diskID"]=".1.3.6.1.4.1.6574.2.1.1.2.0"
+  ["diskModel"]=".1.3.6.1.4.1.6574.2.1.1.3.0"
+  ["diskType"]=".1.3.6.1.4.1.6574.2.1.1.4.0"
+  ["diskStatus"]=".1.3.6.1.4.1.6574.2.1.1.5.0"
+  ["diskTemperature"]=".1.3.6.1.4.1.6574.2.1.1.6.0"
+  ["diskRole"]=".1.3.6.1.4.1.6574.2.1.1.7.0"
+  ["diskRetry"]=".1.3.6.1.4.1.6574.2.1.1.8.0"
+  ["diskBadSector"]=".1.3.6.1.4.1.6574.2.1.1.9.0"
+  ["diskIdentifyFail"]=".1.3.6.1.4.1.6574.2.1.1.10.0"
+  ["diskRemainLife"]=".1.3.6.1.4.1.6574.2.1.1.11.0"
+  ["diskName"]=".1.3.6.1.4.1.6574.2.1.1.12.0"
+  ["diskHealthStatus"]=".1.3.6.1.4.1.6574.2.1.1.13.0"
+  # RAID MIB
+  ["raidName"]=".1.3.6.1.4.1.6574.3.1.1.2.0"
+  ["raidStatus"]=".1.3.6.1.4.1.6574.3.1.1.3.0"
+  ["raidFreeSize"]=".1.3.6.1.4.1.6574.3.1.1.4.0"
+  ["raidTotalSize"]=".1.3.6.1.4.1.6574.3.1.1.5.0"
+  ["raidHotspareCnt"]=".1.3.6.1.4.1.6574.3.1.1.6.0"
+  # UPS MIB
+  ["upsDeviceModel"]="1.3.6.1.4.1.6574.4.1.1.0"
+  ["upsDeviceManufacturer"]="1.3.6.1.4.1.6574.4.1.2.0"
+  ["upsDeviceSerial"]="1.3.6.1.4.1.6574.4.1.3.0"
+  ["upsInfoStatus"]="1.3.6.1.4.1.6574.4.2.1.0"
+  ["upsInfoMfrDate"]="1.3.5.1.4.1.6574.4.2.6.2.0"
+  ["upsInfoLoadValue"]="1.3.6.1.4.1.6574.4.2.12.1.0"
+  ["upsBatteryChargeValue"]="1.3.6.1.4.1.6574.4.3.1.1.0"
+  ["upsBatteryChargeWarning"]="1.3.6.1.4.1.6574.4.3.1.4.0"
+  # Services MIB
+  ["serviceNameCIFS"]=".1.3.6.1.4.1.6574.6.1.1.2.1"
+  ["serviceNameAFP"]=".1.3.6.1.4.1.6574.6.1.1.2.2"
+  ["serviceNameNFS"]=".1.3.6.1.4.1.6574.6.1.1.2.3"
+  ["serviceNameFTP"]=".1.3.6.1.4.1.6574.6.1.1.2.4"
+  ["serviceNameSFTP"]=".1.3.6.1.4.1.6574.6.1.1.2.5"
+  ["serviceNameHTTP_HTTPS"]=".1.3.6.1.4.1.6574.6.1.1.2.6"
+  ["serviceNameTELNET"]=".1.3.6.1.4.1.6574.6.1.1.2.7"
+  ["serviceNameSSH"]=".1.3.6.1.4.1.6574.6.1.1.2.8"
+  ["serviceNameOTHER"]=".1.3.6.1.4.1.6574.6.1.1.2.9"
+  ["serviceUsersCIFS"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsersAFP"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsersFTP"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsersSFTP"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsersHTTP_HTTPS"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsersTELNET"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsersSSH"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsersOTHER"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+  ["serviceUsers"]=".1.3.6.1.4.1.6574.6.1.1.3.1"
+)
+
+# Disk MIB generator
+generate_oids "diskID" ".1.3.6.1.4.1.6574.2.1.1.2"
+generate_oids "diskModel" ".1.3.6.1.4.1.6574.2.1.1.3"
+generate_oids "diskType" ".1.3.6.1.4.1.6574.2.1.1.4"
+generate_oids "diskStatus" ".1.3.6.1.4.1.6574.2.1.1.5"
+generate_oids "diskTemperature" ".1.3.6.1.4.1.6574.2.1.1.6"
+generate_oids "diskRole" ".1.3.6.1.4.1.6574.2.1.1.7"
+generate_oids "diskRetry" ".1.3.6.1.4.1.6574.2.1.1.8"
+generate_oids "diskBadSector" ".1.3.6.1.4.1.6574.2.1.1.9"
+generate_oids "diskIdentifyFail" ".1.3.6.1.4.1.6574.2.1.1.10"
+generate_oids "diskRemainLife" ".1.3.6.1.4.1.6574.2.1.1.11"
+generate_oids "diskName" ".1.3.6.1.4.1.6574.2.1.1.12"
+generate_oids "diskHealthStatus" ".1.3.6.1.4.1.6574.2.1.1.13"
+
+# RAID MIB generator
+generate_oids "raidName" ".1.3.6.1.4.1.6574.3.1.1.2"
+generate_oids "raidStatus" ".1.3.6.1.4.1.6574.3.1.1.3"
+generate_oids "raidFreeSize" ".1.3.6.1.4.1.6574.3.1.1.4"
+generate_oids "raidTotalSize" ".1.3.6.1.4.1.6574.3.1.1.5"
+generate_oids "raidHotspareCnt" ".1.3.6.1.4.1.6574.3.1.1.6"
+
+# Function to display usage information
+usage() {
+  echo "Usage: $0 -H <SNMP_HOST> -p <SNMP_PORT> -su <SNMP_USERNAME> -sap <SNMP_AUTH_PASSPHRASE> -sapr <SNMP_AUTH_PROTOCOL> -spp <SNMP_PRIVACY_PASSPHRASE> -sppr <SNMP_PRIVACY_PROTOCOL> -e <KEYWORD>"
+  exit 1
+}
+
+# Function to retrieve the value for a given OID
+get_oid_value() {
+  local oid="$1"
+  local result=$(snmpget -v3 -l authPriv -a "$SNMP_AUTH_PROTOCOL" -A "$SNMP_AUTH_PASSPHRASE" -x "$SNMP_PRIVACY_PROTOCOL" -X "$SNMP_PRIVACY_PASSPHRASE" -u "$SNMP_USERNAME" "$SNMP_HOST:$SNMP_PORT" "$oid" 2>/dev/null)
+  echo "$result"
+}
+
+# Function to evaluate the result and get the status for a given keyword
+get_status_for_keyword() {
+  local keyword="$1"
+  local result="$2"
+  case "$keyword" in
+    # System options
+    "systemStatus")
+      result=$(echo "$result" | awk '{print  $NF}')
+      if [[ "$result" == "1" ]]; then
+        echo "OK - System partition status: Normal"
+        exit 0
+      elif [[ "$result" == "2" ]]; then
+        echo "CRITICAL - System partition status: Failed"
+        exit 2
+      else
+        echo "UNKNOWN - Failed to retrieve system partition status"
+        exit 3
+      fi
+      ;;
+    "temperature")
+      result=$(echo "$result" | awk '{print  $NF}')
+      echo "Temperature : $result°"
+      exit 0
+      ;;
+    "powerStatus")
+      result=$(echo "$result" | awk '{print  $NF}')
+      if [[ "$result" == "1" ]]; then
+        echo "OK - Power supplies status: Normal"
+        exit 0
+      elif [[ "$result" == "2" ]]; then
+        echo "CRITICAL - Power supplies status: Failed"
+        exit 2
+      else
+        echo "UNKNOWN - Failed to retrieve power supplies status"
+        exit 3
+      fi
+      ;;
+    "systemFanStatus")
+      result=$(echo "$result" | awk '{print  $NF}')
+      if [[ "$result" == "1" ]]; then
+        echo "OK - System fan status: Normal"
+        exit 0
+      elif [[ "$result" == "2" ]]; then
+        echo "CRITICAL - System fan status: Failed"
+        exit 2
+      else
+        echo "UNKNOWN - Failed to retrieve system fan status"
+        exit 3
+      fi
+      ;;
+    "cpuFanStatus")
+      result=$(echo "$result" | awk '{print  $NF}')
+      if [[ "$result" == "1" ]]; then
+        echo "OK - CPU fan status: Normal"
+        exit 0
+      elif [[ "$result" == "2" ]]; then
+        echo "CRITICAL - CPU fan status: Failed"
+        exit 2
+      else
+        echo "UNKNOWN - Failed to retrieve CPU fan status"
+        exit 3
+      fi
+      ;;
+    "modelName")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
+      echo "Model : $result"
+      exit 0
+      ;;
+    "serialNumber")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
+      echo "Serial number : $result"
+      exit 0
+      ;;
+    "version")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
+      echo "Version : $result"
+      exit 0
+      ;;
+    "upgradeAvailable")
+      result=$(echo "$result" | awk '{print  $NF}')
+      if [[ "$result" == "1" ]]; then
+        echo "WARNING - Update is available"
+        exit 1
+      elif [[ "$result" == "2" ]]; then
+        echo "OK - No update available"
+        exit 0
+      elif [[ "$result" == "3" ]]; then
+        echo "WARNING - Trying to connect to get update"
+        exit 1
+      elif [[ "$result" == "4" ]]; then
+        echo "WARNING - Update service is deconnected"
+        exit 1
+      elif [[ "$result" == "5" ]]; then
+        echo "CRITICAL - Update service status : Others"
+        exit 2
+      else
+        echo "UNKNOWN - Failed to retrieve update availability status"
+        exit 3
+      fi
+      ;;
+     # Disk options
+     "diskID"*)
+      if [[ "$keyword" =~ ^diskID([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "$result"
+      exit 0
+      fi
+      ;;
+    "diskModel"*)
+      if [[ "$keyword" =~ ^diskModel([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "$result"
+      exit 0
+      fi
+      ;;
+    "diskType"*)
+      if [[ "$keyword" =~ ^diskType([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "$result"
+      exit 0
+      fi
+      ;;
+    "diskStatus"*)
+      if [[ "$keyword" =~ ^diskStatus([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+        if [[ "$result" == "1" ]]; then
+          echo "OK - Disk status: Normal"
+          exit 0
+        elif [[ "$result" == "2" ]]; then
+          echo "OK - Disk status: Initialized (no data on it)"
+          exit 0
+        elif [[ "$result" == "3" ]]; then
+          echo "OK - Disk status: Not initialized (no partition on it)"
+          exit 0
+        elif [[ "$result" == "4" ]]; then
+          echo "WARNING - Disk status: System partition failed (Partitions on the disk are damaged, disk may crash quickly)"
+          exit 1
+        elif [[ "$result" == "5" ]]; then
+          echo "CRITICAL - Disk status: Crashed"
+          exit 2
+        else
+          echo "UNKNOWN - Failed to retrieve disk status"
+          exit 3
+        fi
+      fi
+      ;;
+    "diskTemperature"*)
+      if [[ "$keyword" =~ ^diskTemperature([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+      echo "Temperature : $result°"
+      exit 0
+      fi
+      ;;
+    "diskRole"*)
+      if [[ "$keyword" =~ ^diskRole([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+        if [[ "$result" == "data" ]]; then
+          echo "Disk role: Data (Member of storage pool)"
+          exit 0
+        elif [[ "$result" == "hotspare" ]]; then
+          echo "Disk role: Hotspare (Assigned as hot spare disk)"
+          exit 0
+        elif [[ "$result" == "ssd_cache" ]]; then
+          echo "Disk role: SSD Cache (Used by SSD cache)"
+          exit 0
+        elif [[ "$result" == "none" ]]; then
+          echo "Disk role: None (not used)"
+          exit 0
+        elif [[ "$result" == "unknown" ]]; then
+          echo "WARNING - Disk role: Unknown (Some error occured)"
+          exit 1
+        else
+          echo "UNKNOWN - Failed to retrieve disk role status"
+          exit 3
+        fi
+      fi
+      ;;
+    "diskRetry"*)
+      if [[ "$keyword" =~ ^diskRetry([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+      echo "Disk retries: $result"
+      exit 0
+      fi
+      ;;
+    "diskBadSector"*)
+      if [[ "$keyword" =~ ^diskBadSector([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+      echo "Disk bad sectors: $result"
+      exit 0
+      fi
+      ;;
+    "diskIdentifyFail"*)
+      if [[ "$keyword" =~ ^diskIdentifyFail([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+      echo "Disk identify fails: $result"
+      exit 0
+      fi
+      ;;
+    "diskRemainLife"*)
+      if [[ "$keyword" =~ ^diskRemainLife([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+      echo "Disk remain life: $result days"
+      exit 0
+      fi
+      ;;
+    "diskName"*)
+      if [[ "$keyword" =~ ^diskName([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "Disk name: $result"
+      exit 0
+      fi
+      ;;
+    "diskHealthStatus"*)
+      if [[ "$keyword" =~ ^diskHealthStatus([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+        if [[ "$result" == "1" ]]; then
+          echo "OK - Disk health status: Normal"
+          exit 0
+        elif [[ "$result" == "2" ]]; then
+          echo "WARNING - Disk health status: Warning"
+          exit 1
+        elif [[ "$result" == "3" ]]; then
+          echo "CRITICAL - Disk health status: Critical"
+          exit 2
+        elif [[ "$result" == "4" ]]; then
+          echo "CRITICAL - Disk health status: Failing"
+          exit 2
+        else
+          echo "UNKNOWN - Failed to retrieve disk health status"
+          exit 3
+        fi
+      fi
+      ;;
+    # RAID options
+    "raidName"*)
+      if [[ "$keyword" =~ ^raidName([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "RAID name: $result"
+      exit 0
+      fi
+      ;;
+    "raidStatus"*)
+      if [[ "$keyword" =~ ^raidStatus([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+        if [[ "$result" == "1" ]]; then
+          echo "OK - RAID status: Normal"
+          exit 0
+        elif [[ "$result" == "2" ]]; then
+          echo "OK - RAID status: Repairing"
+          exit 0
+        elif [[ "$result" == "3" ]]; then
+          echo "OK - RAID status: Migrating"
+          exit 0
+        elif [[ "$result" == "4" ]]; then
+          echo "OK - RAID status: Expanding"
+          exit 0
+        elif [[ "$result" == "5" ]]; then
+          echo "OK - RAID status: Deleting"
+          exit 0
+        elif [[ "$result" == "6" ]]; then
+          echo "OK - RAID status: Creating"
+          exit 0
+        elif [[ "$result" == "7" ]]; then
+          echo "OK - RAID status: RAID syncing"
+          exit 0
+        elif [[ "$result" == "8" ]]; then
+          echo "OK - RAID status: RAID parity checking"
+          exit 0
+        elif [[ "$result" == "9" ]]; then
+          echo "OK - RAID status: RAID assembling"
+          exit 0
+        elif [[ "$result" == "10" ]]; then
+          echo "OK - RAID status: Canceling"
+          exit 0
+        elif [[ "$result" == "11" ]]; then
+          echo "WARNING - RAID status: Degrade (tolerable failure of disk(s) occurs)"
+          exit 1
+        elif [[ "$result" == "12" ]]; then
+          echo "CRITICAL - RAID status: Crashed and is now read-only"
+          exit 2
+        elif [[ "$result" == "13" ]]; then
+          echo "OK - RAID status: Data scrubbing"
+          exit 0
+        elif [[ "$result" == "14" ]]; then
+          echo "OK - RAID status: RAID deploying (a single volume is deploying on pool)"
+          exit 0
+        elif [[ "$result" == "15" ]]; then
+          echo "WARNING - RAID status: RAID undeploying (a single volume is not deploying on pool)"
+          exit 1
+        elif [[ "$result" == "16" ]]; then
+          echo "OK - RAID status: RAID is mounting SSD cache"
+          exit 0
+        elif [[ "$result" == "17" ]]; then
+          echo "WARNING - RAID status: RAID is not mounting SSD cache"
+          exit 1
+        elif [[ "$result" == "18" ]]; then
+          echo "OK - RAID status: RAID continue to expand unfinished SHR (previously interrupted)"
+          exit 0
+        elif [[ "$result" == "19" ]]; then
+          echo "OK - RAID status: RAID is converting single volume on SHR to multiple volume on SHR"
+          exit 0
+        elif [[ "$result" == "20" ]]; then
+          echo "OK - RAID status: RAID is migrating from SHR1 to SHR2"
+          exit 0
+        elif [[ "$result" == "21" ]]; then
+          echo "CRITICAL - RAID status: RAID status is unknown (its state is not one of possible cases)"
+          exit 2
+        else
+          echo "UNKNOWN - Failed to retrieve disk health status"
+          exit 3
+        fi
+      fi
+      ;;
+    "raidFreeSize"*)
+      if [[ "$keyword" =~ ^raidFreeSize([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP 'Counter64:\s+\K\d+')
+      # Uncomment these two lines to enable terabytes result 
+      #result=$(echo "$result" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024 * 1024) * 8 / 10 }')
+      #echo "RAID free size: $result TB"
+      # Comment these two lines to disable gigabytes result. Remember to keep tera or giga activated otherwise case will fail!
+      result=$(echo "$result" | awk '{printf "%.2f", $1 / (1024 * 1024 * 1024)}')
+      echo "RAID free size: ${result} GB"
+      exit 0
+      fi
+      ;;
+    "raidTotalSize"*)
+      if [[ "$keyword" =~ ^raidTotalSize([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | grep -oP 'Counter64:\s+\K\d+')
+      # Uncomment these two lines to enable terabytes result
+      #result=$(echo "$result" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024 * 1024) * 8 / 10 }')
+      #echo "RAID total size: $result TB"
+      # Comment these two lines to disable gigabytes result. Remember to keep tera or giga activated otherwise case will fail!
+      result=$(echo "$result" | awk '{printf "%.2f", $1 / (1024 * 1024 * 1024)}')
+      echo "RAID total size: ${result} GB"
+      exit 0
+      fi
+      ;;
+    "raidHotspareCnt"*)
+      if [[ "$keyword" =~ ^raidHotspareCnt([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
+      result=$(echo "$result" | awk '{print  $NF}')
+      echo "RAID hotspare count: $result"
+      exit 0
+      fi
+      ;;
+    # UPS options
+    "upsDeviceModel")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS model: $result"
+      exit 0
+      ;;
+    "upsDeviceManufacturer")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS manufacturer: $result"
+      exit 0
+      ;;
+    "upsDeviceSerial")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS serial number: $result"
+      exit 0
+      ;;
+    "upsInfoStatus")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS status: $result"
+      exit 0
+      ;;
+    "upsInfoMfrDate")
+      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS manufacturing date: $result"
+      exit 0
+      ;;
+    "upsInfoLoadValue")
+      result=$(echo "$result" | awk '{print $NF}')
+      echo "UPS load: $result"
+      exit 0
+      ;;
+    "upsBatteryChargeValue")
+      result=$(echo "$result" | awk '{print $NF}')
+      echo "UPS battery charge: $result"
+      exit 0
+      ;;
+    "upsBatteryChargeWarning")
+      result=$(echo "$result" | awk '{print $NF}')
+      echo "UPS battery charge level warning: $result"
+      exit 0
+      ;;
+    "upsBatteryType")
+      result=$(echo "$result" | awk '{print $NF}')
+      echo "UPS battery chemistry: $result"
+      exit 0
+      ;;
+    # Services options
+    "serviceNameCIFS")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersCIFS")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameAFP")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersAFP")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameNFS")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersNFS")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameFTP")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersFTP")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameSFTP")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersSFTP")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameHTTP_HTTPS")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersHTTP_HTTPS")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameTELNET")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersTELNET")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameSSH")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersSSH")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+    "serviceNameOTHER")
+     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $result"
+     exit 0
+     ;;
+    "serviceUsersOTHER")
+     result=$(echo "$result" | awk '{print  $NF}')
+     echo "Users using this service: $result"
+     exit 0
+     ;;
+
+    # Add more cases here for other keywords as needed
+    *)
+      result="UNKNOWN"
+      ;;
+  esac
+  echo "$result"
+}
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -H)
+      SNMP_HOST="$2"
+      shift 2
+      ;;
+    -p)
+      SNMP_PORT="$2"
+      shift 2
+      ;;
+    -su)
+      SNMP_USERNAME="$2"
+      shift 2
+      ;;
+    -sap)
+      SNMP_AUTH_PASSPHRASE="$2"
+      shift 2
+      ;;
+    -sapr)
+      SNMP_AUTH_PROTOCOL="$2"
+      shift 2
+      ;;
+    -spp)
+      SNMP_PRIVACY_PASSPHRASE="$2"
+      shift 2
+      ;;
+    -sppr)
+      SNMP_PRIVACY_PROTOCOL="$2"
+      shift 2
+      ;;
+    -e)
+      KEYWORD="$2"
+      OID="${KEYWORDS_TO_OIDS[$KEYWORD]}"
+      if [[ -z "$OID" ]]; then
+        echo "Unknown keyword: $KEYWORD" >&2
+        exit 1
+      fi
+      VALUE=$(get_oid_value "$OID")
+      STATUS=$(get_status_for_keyword "$KEYWORD" "$VALUE")
+      echo "$STATUS"
+      exit 0
+    shift 2
+    ;;
+    -v)
+      echo "$script - $author - $version"
+      exit 0
+      ;;
+  *)
+    echo "Unknown option: $1" >&2
+    usage
+    ;;
+  esac
+done
+
+# If any required options are missing, display usage information
+if [[ -z "$SNMP_HOST" || -z "$SNMP_USERNAME" || -z "$SNMP_AUTH_PASSPHRASE" || -z "$SNMP_PRIVACY_PASSPHRASE" || -z "$KEYWORD" ]]; then
+  echo "Missing required options" >&2
+  usage
+fi
+
+# If keyword is not provided or is unknown, display usage information
+if [[ -z "$KEYWORD" || -z "${KEYWORDS_TO_OIDS[$KEYWORD]}" ]]; then
+  echo "Unknown keyword: $KEYWORD" >&2
+  usage
+fi
+
+# Retrieve value for the provided OID and get status for the keyword
+OID="${KEYWORDS_TO_OIDS[$KEYWORD]}"
+VALUE=$(get_oid_value "$OID")
+STATUS=$(get_status_for_keyword "$KEYWORD" "$VALUE")
+echo "$STATUS"
+exit 0
