@@ -1,9 +1,13 @@
 # check_synology
 > Independant Nagios plugin to monitor Synology NAS
 
-1. Get the Synology official MIB files from here:
+1. Get the Synology official MIB files and put them in the mibs SNMP folder on your Nagios server
+```bash
+# Download link for MIB
 https://global.download.synology.com/download/Document/Software/DeveloperGuide/Firmware/DSM/All/enu/Synology_MIB_File.zip
-
+unzip Synology_MIB_File.zip
+sudo mv *.txt /usr/share/snmp/mibs/
+```
 2. Put the `check_synology` plugin in the folder libexec (/usr/local/nagios/libexec) of your Nagios installation and chown it to nagios:nagios
 ```bash
 sudo chown nagios:nagios check_synology
