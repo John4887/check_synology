@@ -19,8 +19,9 @@ sudo chmod +x check_synology
 
 ## Usage
 
-```shell
-./check_synology -H <host> - p <snmp_port> -su <snmp_username> -sap <snmp_auth_passphrase> -sapr <snmp_privacy_passphrase> -sppr <snmp_privacy_protocol> -e <keyword>
+```text
+Usage: ./check_synology -H <SNMP_HOST> [-p {161|Other}] -su <SNMP_USERNAME> -sap <SNMP_AUTH_PASSPHRASE> [-sapr {SHA|MD5}
+-spp <SNMP_PRIVACY_PASSPHRASE> [-sppr {AES|DES] -e <KEYWORD>
 ```
 
 You have also the possibility to fix some parameters, by default SNMP port is fixed to the default one (161), SNMP auth protocol is fixed to SHA (most secured option) and SNMP privacy protocol is fixed to AES (most secured option).
