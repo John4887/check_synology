@@ -105,3 +105,8 @@ The `-e` argument supports these keywords:
 For each keyword, the `OK|WARNING|CRITICAL` is applied and you will receive the right status for each situation. Informative keywords are always `OK` by default with their text status (example : modelName).
 
 Technical keywords (like `raidStatus` for exemple) will give you the right status (`OK|WARNING|CRITICAL`) and corresponding text information for each situtation.
+
+### Screenshots
+> Sample of some configured controls
+
+![alt text](https://github.com/John4887/check_synology/blob/main/check_synology_sample.png)
