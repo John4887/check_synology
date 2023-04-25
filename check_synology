@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/bin/bash 
 
 script="check_synology"
-version="1.0.0"
+version="1.1.0"
 author="John Gonzalez"
 
 # Default values
@@ -16,6 +16,7 @@ SNMP_PRIVACY_PROTOCOL="AES"
 # Mappings of keywords to OIDs
 declare -A KEYWORDS_TO_OIDS
 
+# Function to generate oid
 function generate_oids() {
   local keyword=$1
   local oid_prefix=$2
@@ -24,7 +25,7 @@ function generate_oids() {
   done
 }
 
-# System MIB
+# OID declarations
 KEYWORDS_TO_OIDS=(
   # System MIB
   ["systemStatus"]=".1.3.6.1.4.1.6574.1.1.0"
@@ -108,7 +109,17 @@ generate_oids "raidHotspareCnt" ".1.3.6.1.4.1.6574.3.1.1.6"
 
 # Function to display usage information
 usage() {
-  echo "Usage: $0 -H <SNMP_HOST> -p <SNMP_PORT> -su <SNMP_USERNAME> -sap <SNMP_AUTH_PASSPHRASE> -sapr <SNMP_AUTH_PROTOCOL> -spp <SNMP_PRIVACY_PASSPHRASE> -sppr <SNMP_PRIVACY_PROTOCOL> -e <KEYWORD>"
+  echo "This script is designed to be used with SNMPv3."
+  echo "By default, the script calls the most secure protocols for SNMP requests (SHA) and for privacy (AES)."
+  echo "The other protocols (MD5 for SNMP requets and DES for privacy) are also usable."
+  echo "In this case you can use the arguments -sapr and -sppr to modify them."
+  echo "If prefered, you can also set these parameters in the # Default values section of the script."
+  echo ""
+  echo "Usage: $0 -H <SNMP_HOST> [-p {161|Other}] -su <SNMP_USERNAME> -sap <SNMP_AUTH_PASSPHRASE> [-sapr {SHA|MD5}"
+  echo "-spp <SNMP_PRIVACY_PASSPHRASE> [-sppr {AES|DES] -e <KEYWORD>"
+  echo ""
+  echo "Please read the README.md file for a list of all supported keywords and the information retrieved"
+  echo "for each keyword." 
   exit 1
 }
 
@@ -119,18 +130,18 @@ get_oid_value() {
   echo "$result"
 }
 
-# Function to evaluate the result and get the status for a given keyword
+# Function to evaluate the STATUS and get the status for a given keyword
 get_status_for_keyword() {
   local keyword="$1"
-  local result="$2"
+  local STATUS="$2"
   case "$keyword" in
     # System options
     "systemStatus")
-      result=$(echo "$result" | awk '{print  $NF}')
-      if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      if [[ "$STATUS" == "1" ]]; then
         echo "OK - System partition status: Normal"
         exit 0
-      elif [[ "$result" == "2" ]]; then
+      elif [[ "$STATUS" == "2" ]]; then
         echo "CRITICAL - System partition status: Failed"
         exit 2
       else
@@ -139,16 +150,16 @@ get_status_for_keyword() {
       fi
       ;;
     "temperature")
-      result=$(echo "$result" | awk '{print  $NF}')
-      echo "Temperature : $result°"
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      echo "Temperature : $STATUS°"
       exit 0
       ;;
     "powerStatus")
-      result=$(echo "$result" | awk '{print  $NF}')
-      if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      if [[ "$STATUS" == "1" ]]; then
         echo "OK - Power supplies status: Normal"
         exit 0
-      elif [[ "$result" == "2" ]]; then
+      elif [[ "$STATUS" == "2" ]]; then
         echo "CRITICAL - Power supplies status: Failed"
         exit 2
       else
@@ -157,11 +168,11 @@ get_status_for_keyword() {
       fi
       ;;
     "systemFanStatus")
-      result=$(echo "$result" | awk '{print  $NF}')
-      if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      if [[ "$STATUS" == "1" ]]; then
         echo "OK - System fan status: Normal"
         exit 0
-      elif [[ "$result" == "2" ]]; then
+      elif [[ "$STATUS" == "2" ]]; then
         echo "CRITICAL - System fan status: Failed"
         exit 2
       else
@@ -170,11 +181,11 @@ get_status_for_keyword() {
       fi
       ;;
     "cpuFanStatus")
-      result=$(echo "$result" | awk '{print  $NF}')
-      if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      if [[ "$STATUS" == "1" ]]; then
         echo "OK - CPU fan status: Normal"
         exit 0
-      elif [[ "$result" == "2" ]]; then
+      elif [[ "$STATUS" == "2" ]]; then
         echo "CRITICAL - CPU fan status: Failed"
         exit 2
       else
@@ -183,35 +194,35 @@ get_status_for_keyword() {
       fi
       ;;
     "modelName")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
-      echo "Model : $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
+      echo "Model : $STATUS"
       exit 0
       ;;
     "serialNumber")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
-      echo "Serial number : $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
+      echo "Serial number : $STATUS"
       exit 0
       ;;
     "version")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
-      echo "Version : $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+' | sed -n '1p')
+      echo "Version : $STATUS"
       exit 0
       ;;
     "upgradeAvailable")
-      result=$(echo "$result" | awk '{print  $NF}')
-      if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      if [[ "$STATUS" == "1" ]]; then
         echo "WARNING - Update is available"
         exit 1
-      elif [[ "$result" == "2" ]]; then
+      elif [[ "$STATUS" == "2" ]]; then
         echo "OK - No update available"
         exit 0
-      elif [[ "$result" == "3" ]]; then
+      elif [[ "$STATUS" == "3" ]]; then
         echo "WARNING - Trying to connect to get update"
         exit 1
-      elif [[ "$result" == "4" ]]; then
+      elif [[ "$STATUS" == "4" ]]; then
         echo "WARNING - Update service is deconnected"
         exit 1
-      elif [[ "$result" == "5" ]]; then
+      elif [[ "$STATUS" == "5" ]]; then
         echo "CRITICAL - Update service status : Others"
         exit 2
       else
@@ -222,41 +233,41 @@ get_status_for_keyword() {
      # Disk options
      "diskID"*)
       if [[ "$keyword" =~ ^diskID([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "$result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "$STATUS"
       exit 0
       fi
       ;;
     "diskModel"*)
       if [[ "$keyword" =~ ^diskModel([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "$result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "$STATUS"
       exit 0
       fi
       ;;
     "diskType"*)
       if [[ "$keyword" =~ ^diskType([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "$result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "$STATUS"
       exit 0
       fi
       ;;
     "diskStatus"*)
       if [[ "$keyword" =~ ^diskStatus([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-        if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+        if [[ "$STATUS" == "1" ]]; then
           echo "OK - Disk status: Normal"
           exit 0
-        elif [[ "$result" == "2" ]]; then
+        elif [[ "$STATUS" == "2" ]]; then
           echo "OK - Disk status: Initialized (no data on it)"
           exit 0
-        elif [[ "$result" == "3" ]]; then
+        elif [[ "$STATUS" == "3" ]]; then
           echo "OK - Disk status: Not initialized (no partition on it)"
           exit 0
-        elif [[ "$result" == "4" ]]; then
+        elif [[ "$STATUS" == "4" ]]; then
           echo "WARNING - Disk status: System partition failed (Partitions on the disk are damaged, disk may crash quickly)"
           exit 1
-        elif [[ "$result" == "5" ]]; then
+        elif [[ "$STATUS" == "5" ]]; then
           echo "CRITICAL - Disk status: Crashed"
           exit 2
         else
@@ -267,27 +278,27 @@ get_status_for_keyword() {
       ;;
     "diskTemperature"*)
       if [[ "$keyword" =~ ^diskTemperature([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-      echo "Temperature : $result°"
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      echo "Temperature : $STATUS°"
       exit 0
       fi
       ;;
     "diskRole"*)
       if [[ "$keyword" =~ ^diskRole([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-        if [[ "$result" == "data" ]]; then
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+        if [[ "$STATUS" == "data" ]]; then
           echo "Disk role: Data (Member of storage pool)"
           exit 0
-        elif [[ "$result" == "hotspare" ]]; then
+        elif [[ "$STATUS" == "hotspare" ]]; then
           echo "Disk role: Hotspare (Assigned as hot spare disk)"
           exit 0
-        elif [[ "$result" == "ssd_cache" ]]; then
+        elif [[ "$STATUS" == "ssd_cache" ]]; then
           echo "Disk role: SSD Cache (Used by SSD cache)"
           exit 0
-        elif [[ "$result" == "none" ]]; then
+        elif [[ "$STATUS" == "none" ]]; then
           echo "Disk role: None (not used)"
           exit 0
-        elif [[ "$result" == "unknown" ]]; then
+        elif [[ "$STATUS" == "unknown" ]]; then
           echo "WARNING - Disk role: Unknown (Some error occured)"
           exit 1
         else
@@ -298,52 +309,52 @@ get_status_for_keyword() {
       ;;
     "diskRetry"*)
       if [[ "$keyword" =~ ^diskRetry([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-      echo "Disk retries: $result"
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      echo "Disk retries: $STATUS"
       exit 0
       fi
       ;;
     "diskBadSector"*)
       if [[ "$keyword" =~ ^diskBadSector([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-      echo "Disk bad sectors: $result"
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      echo "Disk bad sectors: $STATUS"
       exit 0
       fi
       ;;
     "diskIdentifyFail"*)
       if [[ "$keyword" =~ ^diskIdentifyFail([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-      echo "Disk identify fails: $result"
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      echo "Disk identify fails: $STATUS"
       exit 0
       fi
       ;;
     "diskRemainLife"*)
       if [[ "$keyword" =~ ^diskRemainLife([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-      echo "Disk remain life: $result days"
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      echo "Disk remain life: $STATUS days"
       exit 0
       fi
       ;;
     "diskName"*)
       if [[ "$keyword" =~ ^diskName([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "Disk name: $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "Disk name: $STATUS"
       exit 0
       fi
       ;;
     "diskHealthStatus"*)
       if [[ "$keyword" =~ ^diskHealthStatus([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-        if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+        if [[ "$STATUS" == "1" ]]; then
           echo "OK - Disk health status: Normal"
           exit 0
-        elif [[ "$result" == "2" ]]; then
+        elif [[ "$STATUS" == "2" ]]; then
           echo "WARNING - Disk health status: Warning"
           exit 1
-        elif [[ "$result" == "3" ]]; then
+        elif [[ "$STATUS" == "3" ]]; then
           echo "CRITICAL - Disk health status: Critical"
           exit 2
-        elif [[ "$result" == "4" ]]; then
+        elif [[ "$STATUS" == "4" ]]; then
           echo "CRITICAL - Disk health status: Failing"
           exit 2
         else
@@ -355,75 +366,75 @@ get_status_for_keyword() {
     # RAID options
     "raidName"*)
       if [[ "$keyword" =~ ^raidName([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "RAID name: $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "RAID name: $STATUS"
       exit 0
       fi
       ;;
     "raidStatus"*)
       if [[ "$keyword" =~ ^raidStatus([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-        if [[ "$result" == "1" ]]; then
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+        if [[ "$STATUS" == "1" ]]; then
           echo "OK - RAID status: Normal"
           exit 0
-        elif [[ "$result" == "2" ]]; then
+        elif [[ "$STATUS" == "2" ]]; then
           echo "OK - RAID status: Repairing"
           exit 0
-        elif [[ "$result" == "3" ]]; then
+        elif [[ "$STATUS" == "3" ]]; then
           echo "OK - RAID status: Migrating"
           exit 0
-        elif [[ "$result" == "4" ]]; then
+        elif [[ "$STATUS" == "4" ]]; then
           echo "OK - RAID status: Expanding"
           exit 0
-        elif [[ "$result" == "5" ]]; then
+        elif [[ "$STATUS" == "5" ]]; then
           echo "OK - RAID status: Deleting"
           exit 0
-        elif [[ "$result" == "6" ]]; then
+        elif [[ "$STATUS" == "6" ]]; then
           echo "OK - RAID status: Creating"
           exit 0
-        elif [[ "$result" == "7" ]]; then
+        elif [[ "$STATUS" == "7" ]]; then
           echo "OK - RAID status: RAID syncing"
           exit 0
-        elif [[ "$result" == "8" ]]; then
+        elif [[ "$STATUS" == "8" ]]; then
           echo "OK - RAID status: RAID parity checking"
           exit 0
-        elif [[ "$result" == "9" ]]; then
+        elif [[ "$STATUS" == "9" ]]; then
           echo "OK - RAID status: RAID assembling"
           exit 0
-        elif [[ "$result" == "10" ]]; then
+        elif [[ "$STATUS" == "10" ]]; then
           echo "OK - RAID status: Canceling"
           exit 0
-        elif [[ "$result" == "11" ]]; then
+        elif [[ "$STATUS" == "11" ]]; then
           echo "WARNING - RAID status: Degrade (tolerable failure of disk(s) occurs)"
           exit 1
-        elif [[ "$result" == "12" ]]; then
+        elif [[ "$STATUS" == "12" ]]; then
           echo "CRITICAL - RAID status: Crashed and is now read-only"
           exit 2
-        elif [[ "$result" == "13" ]]; then
+        elif [[ "$STATUS" == "13" ]]; then
           echo "OK - RAID status: Data scrubbing"
           exit 0
-        elif [[ "$result" == "14" ]]; then
+        elif [[ "$STATUS" == "14" ]]; then
           echo "OK - RAID status: RAID deploying (a single volume is deploying on pool)"
           exit 0
-        elif [[ "$result" == "15" ]]; then
+        elif [[ "$STATUS" == "15" ]]; then
           echo "WARNING - RAID status: RAID undeploying (a single volume is not deploying on pool)"
           exit 1
-        elif [[ "$result" == "16" ]]; then
+        elif [[ "$STATUS" == "16" ]]; then
           echo "OK - RAID status: RAID is mounting SSD cache"
           exit 0
-        elif [[ "$result" == "17" ]]; then
+        elif [[ "$STATUS" == "17" ]]; then
           echo "WARNING - RAID status: RAID is not mounting SSD cache"
           exit 1
-        elif [[ "$result" == "18" ]]; then
+        elif [[ "$STATUS" == "18" ]]; then
           echo "OK - RAID status: RAID continue to expand unfinished SHR (previously interrupted)"
           exit 0
-        elif [[ "$result" == "19" ]]; then
+        elif [[ "$STATUS" == "19" ]]; then
           echo "OK - RAID status: RAID is converting single volume on SHR to multiple volume on SHR"
           exit 0
-        elif [[ "$result" == "20" ]]; then
+        elif [[ "$STATUS" == "20" ]]; then
           echo "OK - RAID status: RAID is migrating from SHR1 to SHR2"
           exit 0
-        elif [[ "$result" == "21" ]]; then
+        elif [[ "$STATUS" == "21" ]]; then
           echo "CRITICAL - RAID status: RAID status is unknown (its state is not one of possible cases)"
           exit 2
         else
@@ -434,179 +445,180 @@ get_status_for_keyword() {
       ;;
     "raidFreeSize"*)
       if [[ "$keyword" =~ ^raidFreeSize([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP 'Counter64:\s+\K\d+')
-      # Uncomment these two lines to enable terabytes result 
-      #result=$(echo "$result" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024 * 1024) * 8 / 10 }')
-      #echo "RAID free size: $result TB"
-      # Comment these two lines to disable gigabytes result. Remember to keep tera or giga activated otherwise case will fail!
-      result=$(echo "$result" | awk '{printf "%.2f", $1 / (1024 * 1024 * 1024)}')
-      echo "RAID free size: ${result} GB"
+      STATUS=$(echo "$STATUS" | grep -oP 'Counter64:\s+\K\d+')
+      # Uncomment these two lines to enable terabytes format result
+      #STATUS=$(echo "$STATUS" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024 * 1024) * 8 / 10 }')
+      #echo "RAID free size: $STATUS TB"
+      # Comment these two lines to disable gigabytes format result. Remember to keep tera or giga activated otherwise case will fail!
+      STATUS=$(echo "$STATUS" | awk '{printf "%.2f", $1 / (1024 * 1024 * 1024)}')
+      echo "RAID free size: ${STATUS} GB"
       exit 0
       fi
       ;;
     "raidTotalSize"*)
       if [[ "$keyword" =~ ^raidTotalSize([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | grep -oP 'Counter64:\s+\K\d+')
-      # Uncomment these two lines to enable terabytes result
-      #result=$(echo "$result" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024 * 1024) * 8 / 10 }')
-      #echo "RAID total size: $result TB"
-      # Comment these two lines to disable gigabytes result. Remember to keep tera or giga activated otherwise case will fail!
-      result=$(echo "$result" | awk '{printf "%.2f", $1 / (1024 * 1024 * 1024)}')
-      echo "RAID total size: ${result} GB"
+      STATUS=$(echo "$STATUS" | grep -oP 'Counter64:\s+\K\d+')
+      # Uncomment these two lines to enable terabytes format result
+      #STATUS=$(echo "$STATUS" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024 * 1024) * 8 / 10 }')
+      #echo "RAID total size: $STATUS TB"
+      # Comment these two lines to disable gigabytes format result. Remember to keep tera or giga activated otherwise case will fail!
+      STATUS=$(echo "$STATUS" | awk '{printf "%.2f", $1 / (1024 * 1024 * 1024)}')
+      echo "RAID total size: ${STATUS} GB"
       exit 0
       fi
       ;;
     "raidHotspareCnt"*)
       if [[ "$keyword" =~ ^raidHotspareCnt([0-9]|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])?$ ]]; then
-      result=$(echo "$result" | awk '{print  $NF}')
-      echo "RAID hotspare count: $result"
+      STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+      echo "RAID hotspare count: $STATUS"
       exit 0
       fi
       ;;
     # UPS options
     "upsDeviceModel")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "UPS model: $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS model: $STATUS"
       exit 0
       ;;
     "upsDeviceManufacturer")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "UPS manufacturer: $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS manufacturer: $STATUS"
       exit 0
       ;;
     "upsDeviceSerial")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "UPS serial number: $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS serial number: $STATUS"
       exit 0
       ;;
     "upsInfoStatus")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "UPS status: $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS status: $STATUS"
       exit 0
       ;;
     "upsInfoMfrDate")
-      result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-      echo "UPS manufacturing date: $result"
+      STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+      echo "UPS manufacturing date: $STATUS"
       exit 0
       ;;
     "upsInfoLoadValue")
-      result=$(echo "$result" | awk '{print $NF}')
-      echo "UPS load: $result"
+      STATUS=$(echo "$STATUS" | awk '{print $NF}')
+      echo "UPS load: $STATUS"
       exit 0
       ;;
     "upsBatteryChargeValue")
-      result=$(echo "$result" | awk '{print $NF}')
-      echo "UPS battery charge: $result"
+      STATUS=$(echo "$STATUS" | awk '{print $NF}')
+      echo "UPS battery charge: $STATUS"
       exit 0
       ;;
     "upsBatteryChargeWarning")
-      result=$(echo "$result" | awk '{print $NF}')
-      echo "UPS battery charge level warning: $result"
+      STATUS=$(echo "$STATUS" | awk '{print $NF}')
+      echo "UPS battery charge level warning: $STATUS"
       exit 0
       ;;
     "upsBatteryType")
-      result=$(echo "$result" | awk '{print $NF}')
-      echo "UPS battery chemistry: $result"
+      STATUS=$(echo "$STATUS" | awk '{print $NF}')
+      echo "UPS battery chemistry: $STATUS"
       exit 0
       ;;
     # Services options
     "serviceNameCIFS")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersCIFS")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameAFP")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersAFP")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameNFS")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersNFS")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameFTP")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersFTP")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameSFTP")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersSFTP")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameHTTP_HTTPS")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersHTTP_HTTPS")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameTELNET")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersTELNET")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameSSH")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersSSH")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
     "serviceNameOTHER")
-     result=$(echo "$result" | grep -oP '(?<=STRING: ")[^"]+')
-     echo "Service name: $result"
+     STATUS=$(echo "$STATUS" | grep -oP '(?<=STRING: ")[^"]+')
+     echo "Service name: $STATUS"
      exit 0
      ;;
     "serviceUsersOTHER")
-     result=$(echo "$result" | awk '{print  $NF}')
-     echo "Users using this service: $result"
+     STATUS=$(echo "$STATUS" | awk '{print  $NF}')
+     echo "Users using this service: $STATUS"
      exit 0
      ;;
 
-    # Add more cases here for other keywords as needed
+    # Add more cases after ;; here for other keywords as needed
+
     *)
-      result="UNKNOWN"
+      STATUS="UNKNOWN - Please check your Nagios commands and services definitions"
+      exit 3;
       ;;
   esac
-  echo "$result"
 }
 
 # Parse command line options
@@ -650,7 +662,6 @@ while [[ $# -gt 0 ]]; do
       VALUE=$(get_oid_value "$OID")
       STATUS=$(get_status_for_keyword "$KEYWORD" "$VALUE")
       echo "$STATUS"
-      exit 0
     shift 2
     ;;
     -v)
@@ -666,7 +677,6 @@ done
 
 # If any required options are missing, display usage information
 if [[ -z "$SNMP_HOST" || -z "$SNMP_USERNAME" || -z "$SNMP_AUTH_PASSPHRASE" || -z "$SNMP_PRIVACY_PASSPHRASE" || -z "$KEYWORD" ]]; then
-  echo "Missing required options" >&2
   usage
 fi
 
@@ -680,5 +690,3 @@ fi
 OID="${KEYWORDS_TO_OIDS[$KEYWORD]}"
 VALUE=$(get_oid_value "$OID")
 STATUS=$(get_status_for_keyword "$KEYWORD" "$VALUE")
-echo "$STATUS"
-exit 0
