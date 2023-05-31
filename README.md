@@ -4,7 +4,7 @@
 1. Get the Synology official MIB files and put them in the mibs SNMP folder on your Nagios server
 ```bash
 # Download link for MIB
-https://global.download.synology.com/download/Document/Software/DeveloperGuide/Firmware/DSM/All/enu/Synology_MIB_File.zip
+wget https://global.download.synology.com/download/Document/Software/DeveloperGuide/Firmware/DSM/All/enu/Synology_MIB_File.zip
 unzip Synology_MIB_File.zip
 sudo mv *.txt /usr/share/snmp/mibs/
 ```
@@ -21,7 +21,7 @@ sudo chmod +x check_synology
 
 ```text
 Usage: ./check_synology -H <SNMP_HOST> [-p {161|Other}] -su <SNMP_USERNAME> -sap <SNMP_AUTH_PASSPHRASE> [-sapr {SHA|MD5}
--spp <SNMP_PRIVACY_PASSPHRASE> [-sppr {AES|DES] -e <KEYWORD>
+-spp <SNMP_PRIVACY_PASSPHRASE> [-sppr {AES|DES}] -e <KEYWORD>
 ```
 
 You have also the possibility to fix some parameters, by default SNMP port is fixed to the default one (161), SNMP auth protocol is fixed to SHA (most secured option) and SNMP privacy protocol is fixed to AES (most secured option).
@@ -99,10 +99,10 @@ The `-e` argument supports these keywords:
 |serviceUsersSSH|Give the number of users using SSH|
 |serviceUsersOTHER|Give the number of users using other services|
 |serviceUsers|Give the number of users using the first default service|
-> For options with `[0-255]`, it means you can use a number after the keyword. If you use the keyword without any number, it gives you the information of the first disk or the first RAID (So it's OK for one bay NAS), if you have a NAS with 2 disks or more or if you have 2 RAIDs or more, you have to add 0 (for the first), 1 (for the second), etc...
+> For options with `[0-255]`, it means you can use a number after the keyword. If you use the keyword without any number, it will give you the information of the first disk or the first RAID (So it's OK for  a one bay NAS), if you have a NAS with 2 disks or more or if you have 2 RAIDs or more, you have to add 0 (for the first), 1 (for the second), etc...
 > Example : `-e diskID0` will give you the ID of the first disk, `-e diskID1` will give the ID of the second disk, etc... Same for RAIDs. So you can monitor up to 256 disks and 256 RAIDs if needed.
 
-For each keyword, the `OK|WARNING|CRITICAL` is applied and you will receive the right status for each situation. Informative keywords are always `OK` by default with their text status (example : modelName).
+For each keyword, the `OK|WARNING|CRITICAL` logic is applied and you will receive the right status for each situation. Informative keywords are always `OK` by default with their text status (example : modelName).
 
 Technical keywords (like `raidStatus` for exemple) will give you the right status (`OK|WARNING|CRITICAL`) and corresponding text information for each situtation.
 
