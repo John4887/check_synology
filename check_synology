@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 script="check_synology"
-version="1.1.0"
+version="1.2.0"
 author="John Gonzalez"
 
 # Default values
@@ -217,8 +217,8 @@ get_status_for_keyword() {
         echo "OK - No update available"
         exit 0
       elif [[ "$STATUS" == "3" ]]; then
-        echo "WARNING - Trying to connect to get update"
-        exit 1
+        echo "OK - Trying to connect to get update"
+        exit 0
       elif [[ "$STATUS" == "4" ]]; then
         echo "WARNING - Update service is deconnected"
         exit 1
