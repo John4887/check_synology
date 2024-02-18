@@ -20,7 +20,7 @@ sudo chmod +x check_synology
 ## Usage
 
 ```text
-Usage: ./check_synology -H <SNMP_HOST> [-p {161|Other}] -su <SNMP_USERNAME> -sap <SNMP_AUTH_PASSPHRASE> [-sapr {SHA|MD5}
+Usage: ./check_synology -H <SNMP_HOST> [-p {161|Other}] -su <SNMP_USERNAME> -sap <SNMP_AUTH_PASSPHRASE> [-sapr {SHA|MD5}]
 -spp <SNMP_PRIVACY_PASSPHRASE> [-sppr {AES|DES}] -e <KEYWORD>
 ```
 
